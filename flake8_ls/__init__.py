@@ -23,7 +23,6 @@ import argparse
 from contextlib import redirect_stderr
 from contextlib import redirect_stdout
 import io
-import os
 import re
 import tempfile
 import time
@@ -47,6 +46,7 @@ FLAKE8_SEVERITY = {
     "S": types.DiagnosticSeverity.Warning,
     "I": types.DiagnosticSeverity.Warning,
     "C": types.DiagnosticSeverity.Warning,
+    "B": types.DiagnosticSeverity.Warning,
 }
 
 
@@ -109,7 +109,9 @@ class Flake8Server(server.LanguageServer):
                         ),
                         message=data["message"],
                         code=data["code"],
-                        severity=FLAKE8_SEVERITY[data["code"][0]],
+                        severity=FLAKE8_SEVERITY.get(
+                            data["code"][0], types.DiagnosticSeverity.Warning
+                        ),
                         source="flake8-ls",
                     )
                     diagnostics.append(d)
