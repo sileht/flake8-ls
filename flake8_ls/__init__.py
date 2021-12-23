@@ -36,7 +36,7 @@ from pygls.lsp import types
 
 
 FLAKE8_OUTPUT_RE = re.compile(
-    r"(?P<file>[^:]+):(?P<row>[-+]?\d+):(?P<col>[-+]?\d+): (?P<code>[^ ]+) (?P<code_text>[^:]+): (?P<message>.*)"
+    r"(?P<file>[^:]+):(?P<row>[-+]?\d+):(?P<col>[-+]?\d+): (?P<code>[^ ]+) (?P<message>.*)"
 )
 FLAKE8_SEVERITY = {
     "E": types.DiagnosticSeverity.Error,
@@ -96,7 +96,6 @@ class Flake8Server(server.LanguageServer):
             for line in lines:
                 m = FLAKE8_OUTPUT_RE.match(line)
                 if m is None:
-                    print(line)
                     self.show_message(f"fail to parse mypy result: {line}")
                     self.show_message_log(f"fail to parse mypy result: {line}")
                 else:
@@ -108,7 +107,7 @@ class Flake8Server(server.LanguageServer):
                             start=types.Position(line=row - 1, character=col - 1),
                             end=types.Position(line=row - 1, character=col),
                         ),
-                        message=data["code_text"] + ": " + data["message"],
+                        message=data["message"],
                         code=data["code"],
                         severity=FLAKE8_SEVERITY[data["code"][0]],
                         source="flake8-ls",
@@ -143,5 +142,4 @@ def main() -> None:
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
     ls.set_debug(args.debug)
-    os.chdir("/")
     ls.start_io()  # type: ignore[no-untyped-call]
