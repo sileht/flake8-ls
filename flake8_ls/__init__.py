@@ -20,11 +20,9 @@
 # DEALINGS IN THE SOFTWARE.
 
 import argparse
-from contextlib import redirect_stderr
-from contextlib import redirect_stdout
+import contextlib
 import io
 import re
-import tempfile
 import time
 import typing
 
@@ -32,6 +30,10 @@ from flake8.main import application
 from pygls import server
 from pygls.lsp import methods
 from pygls.lsp import types
+
+
+class redirect_stdin(contextlib.redirect_stdout):  # type: ignore
+    _stream = "stdin"
 
 
 FLAKE8_OUTPUT_RE = re.compile(
@@ -69,54 +71,54 @@ class Flake8Server(server.LanguageServer):
         ],
     ) -> None:
         text_doc = self.workspace.get_document(params.text_document.uri)
-        with tempfile.NamedTemporaryFile(prefix="flake8-ls-source-", suffix=".py") as f:
-            f.write(text_doc.source.encode())
-            f.flush()
+        stderr = io.BytesIO()
+        stdout = io.BytesIO()
+        stdin = io.BytesIO(text_doc.source.encode())
+        with contextlib.redirect_stderr(
+            io.TextIOWrapper(stderr)
+        ), contextlib.redirect_stdout(io.TextIOWrapper(stdout)), redirect_stdin(
+            io.TextIOWrapper(stdin)
+        ):
+            started_at = time.monotonic()
+            self._flake8.run_checks(["-"])
+            self._flake8.report()
+            elapsed = time.monotonic() - started_at
 
-            stderr = io.BytesIO()
-            stdout = io.BytesIO()
-            with redirect_stderr(io.TextIOWrapper(stderr)):
-                with redirect_stdout(io.TextIOWrapper(stdout)):
-                    started_at = time.monotonic()
-                    self._flake8.run_checks([f.name])
-                    self._flake8.report()
-                    elapsed = time.monotonic() - started_at
+            out = stdout.getvalue().decode()
+            err = stderr.getvalue().decode()
 
-                    out = stdout.getvalue().decode()
-                    err = stderr.getvalue().decode()
+        if self._debug:
+            self.show_message(f"Ran flake8 in {elapsed}s:")
+            self.show_message(f"* uri: {text_doc.uri}")
+            self.show_message(f"* stdout: {out}")
+            self.show_message(f"* stderr: {err}")
 
-            if self._debug:
-                self.show_message(f"Ran flake8 in {elapsed}s:")
-                self.show_message(f"* uri: {text_doc.uri}")
-                self.show_message(f"* stdout: {out}")
-                self.show_message(f"* stderr: {err}")
+        lines = [line.strip() for line in out.split("\n") if line.strip()]
+        diagnostics = []
+        for line in lines:
+            m = FLAKE8_OUTPUT_RE.match(line)
+            if m is None:
+                self.show_message(f"fail to parse mypy result: {line}")
+                self.show_message_log(f"fail to parse mypy result: {line}")
+            else:
+                data = m.groupdict()
+                row = int(data["row"])
+                col = int(data["col"])
+                d = types.Diagnostic(
+                    range=types.Range(
+                        start=types.Position(line=row - 1, character=col - 1),
+                        end=types.Position(line=row - 1, character=col),
+                    ),
+                    message=data["message"],
+                    code=data["code"],
+                    severity=FLAKE8_SEVERITY.get(
+                        data["code"][0], types.DiagnosticSeverity.Warning
+                    ),
+                    source="flake8-ls",
+                )
+                diagnostics.append(d)
 
-            lines = [line.strip() for line in out.split("\n") if line.strip()]
-            diagnostics = []
-            for line in lines:
-                m = FLAKE8_OUTPUT_RE.match(line)
-                if m is None:
-                    self.show_message(f"fail to parse mypy result: {line}")
-                    self.show_message_log(f"fail to parse mypy result: {line}")
-                else:
-                    data = m.groupdict()
-                    row = int(data["row"])
-                    col = int(data["col"])
-                    d = types.Diagnostic(
-                        range=types.Range(
-                            start=types.Position(line=row - 1, character=col - 1),
-                            end=types.Position(line=row - 1, character=col),
-                        ),
-                        message=data["message"],
-                        code=data["code"],
-                        severity=FLAKE8_SEVERITY.get(
-                            data["code"][0], types.DiagnosticSeverity.Warning
-                        ),
-                        source="flake8-ls",
-                    )
-                    diagnostics.append(d)
-
-            self.publish_diagnostics(text_doc.uri, diagnostics)
+        self.publish_diagnostics(text_doc.uri, diagnostics)
 
 
 ls = Flake8Server()
