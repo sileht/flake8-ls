@@ -60,7 +60,7 @@ class Flake8Server(server.LanguageServer):
         self._flake8.initialize(["--format", "default", "--no-show-source"])
 
     def set_debug(self, debug: bool) -> None:
-        self._debug = True
+        self._debug = debug
 
     async def validate(
         self,
