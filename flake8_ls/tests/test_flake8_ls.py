@@ -30,7 +30,7 @@ import flake8_ls
 
 
 @pytest.fixture
-def fake_document() -> workspace.Document:
+def fake_document() -> typing.Generator[workspace.Document, None, None]:
     with tempfile.NamedTemporaryFile(prefix="flake8-ls-tests-") as f:
         fake_document_uri = f"file://{f.name}"
         fake_document_content = """
@@ -51,7 +51,7 @@ class ServerFixture(typing.NamedTuple):
 def server(fake_document: workspace.Document) -> ServerFixture:
     fake_publish_diagnostics = mock.Mock()
     s = flake8_ls.Flake8Server()
-    s.lsp.workspace = workspace.Workspace("", None)  # type: ignore[no-untyped-call,assignment]
+    s.lsp.workspace = workspace.Workspace("", None)  # type: ignore[no-untyped-call]
     s.lsp.workspace.get_document = mock.Mock(return_value=fake_document)  # type: ignore[assignment]
     s.lsp.transport = mock.Mock()
     s.publish_diagnostics = fake_publish_diagnostics  # type: ignore[assignment]
@@ -129,7 +129,7 @@ foo("foo")
 """
 
     fixed_doc = workspace.Document(fake_document.uri, fixed_content)  # type: ignore[no-untyped-call]
-    server.server.lsp.workspace.get_document = mock.Mock(return_value=fixed_doc)  # type: ignore[assignment]
+    server.server.lsp.workspace.get_document = mock.Mock(return_value=fixed_doc)
 
     params = types.DidChangeTextDocumentParams(
         contentChanges=[],
