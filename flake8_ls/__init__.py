@@ -26,7 +26,9 @@ import re
 import time
 import typing
 
-from flake8.main import application
+from flake8 import utils
+from flake8.main import application as app
+from flake8.options import config
 from pygls import server
 from pygls.lsp import methods
 from pygls.lsp import types
@@ -56,8 +58,32 @@ class Flake8Server(server.LanguageServer):
     def __init__(self) -> None:
         super().__init__()
         self._debug = False
-        self._flake8 = application.Application()
-        self._flake8.initialize(["--format", "default", "--no-show-source"])
+        self._application = app.Application()
+        prelim_opts, remaining_args = self._application.parse_preliminary_options([])
+        # flake8.configure_logging(prelim_opts.verbose, prelim_opts.output_file)
+        config_finder = config.ConfigFileFinder(
+            self._application.program,
+            prelim_opts.append_config,
+            config_file=prelim_opts.config,
+            ignore_config_files=prelim_opts.isolated,
+        )
+        self._application.find_plugins(config_finder)
+        self._application.register_plugin_options()
+        self._application.parse_configuration_and_cli(config_finder, remaining_args)
+
+        self._application.options.format = "default"
+        self._application.options.show_source = False
+
+    def _reset_application(self) -> None:
+        self._application.formatter = None
+        self._application.make_formatter()
+        self._application.guide = None
+        self._application.make_guide()
+        self._application.file_checker_manager = None
+        self._application.make_file_checker_manager()
+
+        # NOTE(sileht): flake8 use functools.lru_cache to read stdin...
+        utils.stdin_get_value.cache_clear()
 
     def set_debug(self, debug: bool) -> None:
         self._debug = debug
@@ -70,6 +96,8 @@ class Flake8Server(server.LanguageServer):
             types.DidSaveTextDocumentParams,
         ],
     ) -> None:
+        self._reset_application()
+
         text_doc = self.workspace.get_document(params.text_document.uri)
         stderr = io.BytesIO()
         stdout = io.BytesIO()
@@ -80,8 +108,8 @@ class Flake8Server(server.LanguageServer):
             io.TextIOWrapper(stdin)
         ):
             started_at = time.monotonic()
-            self._flake8.run_checks(["-"])
-            self._flake8.report()
+            self._application.run_checks(["-"])
+            self._application.report_errors()
             elapsed = time.monotonic() - started_at
 
             out = stdout.getvalue().decode()

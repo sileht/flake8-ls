@@ -32,12 +32,10 @@ import flake8_ls
 @pytest.fixture
 def fake_document() -> workspace.Document:
     with tempfile.NamedTemporaryFile(prefix="flake8-ls-tests-") as f:
-        # ensure the real file is not read
-
         fake_document_uri = f"file://{f.name}"
         fake_document_content = """
 print(5)
- print()
+ print(2)
         """
         f.write(fake_document_content.encode())
         f.flush()
@@ -69,7 +67,8 @@ def _assert_diags(diags: typing.List[types.Diagnostic]) -> None:
 
 @pytest.mark.asyncio
 async def test_did_save(
-    server: ServerFixture, fake_document: workspace.Document
+    server: ServerFixture,
+    fake_document: workspace.Document,
 ) -> None:
     params = types.DidSaveTextDocumentParams(
         text_document=types.TextDocumentItem(
@@ -83,6 +82,7 @@ async def test_did_save(
     await flake8_ls.did_save(server.server, params)
     server.fake_publish_diagnostics.assert_called_once()
     _assert_diags(server.fake_publish_diagnostics.call_args[0][1])
+    server.fake_publish_diagnostics.reset_mock()
 
 
 @pytest.mark.asyncio
@@ -123,6 +123,7 @@ async def test_did_change(
     fixed_content = """
 def foo(bar: str) -> int:
     return 1
+
 
 foo("foo")
 """
