@@ -108,12 +108,12 @@ class Flake8Server(server.LanguageServer):
             io.TextIOWrapper(stdin)
         ):
             started_at = time.monotonic()
-            crash = False
+            crash: typing.Optional[str] = None
             try:
                 self._application.run_checks(["-"])
                 self._application.report_errors()
-            except Exception:
-                crash = True
+            except Exception as e:
+                crash = str(e)
             elapsed = time.monotonic() - started_at
 
             out = stdout.getvalue().decode()
