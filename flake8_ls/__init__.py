@@ -108,15 +108,20 @@ class Flake8Server(server.LanguageServer):
             io.TextIOWrapper(stdin)
         ):
             started_at = time.monotonic()
-            self._application.run_checks(["-"])
-            self._application.report_errors()
+            crash = False
+            try:
+                self._application.run_checks(["-"])
+                self._application.report_errors()
+            except Exception:
+                crash = True
             elapsed = time.monotonic() - started_at
 
             out = stdout.getvalue().decode()
             err = stderr.getvalue().decode()
 
-        if self._debug:
+        if self._debug or crash:
             self.show_message(f"Ran flake8 in {elapsed}s:")
+            self.show_message(f"* crash: {crash}")
             self.show_message(f"* uri: {text_doc.uri}")
             self.show_message(f"* stdout: {out}")
             self.show_message(f"* stderr: {err}")
