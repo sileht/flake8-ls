@@ -24,6 +24,7 @@ import contextlib
 import io
 import re
 import time
+import traceback
 import typing
 
 from flake8 import utils
@@ -112,8 +113,8 @@ class Flake8Server(server.LanguageServer):
             try:
                 self._application.run_checks(["-"])
                 self._application.report_errors()
-            except Exception as e:
-                crash = str(e)
+            except BaseException:
+                crash = traceback.format_exc()
             elapsed = time.monotonic() - started_at
 
             out = stdout.getvalue().decode()
