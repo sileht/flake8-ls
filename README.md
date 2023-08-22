@@ -1,3 +1,5 @@
+# ‼️ I don't use this anymore, prefer ruff/ruff-lsp ‼️
+
 # flake8-ls: super fast flake8 language server
 
 Its preload flake8 and its plugins only once.
